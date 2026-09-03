@@ -56,7 +56,7 @@
 
   .layout {
     display: grid;
-    grid-template-columns: 1fr 320px;
+    grid-template-columns: 1fr 340px;
     gap: 20px;
   }
 
@@ -241,7 +241,7 @@
 
   .status {
     text-align: center;
-    margin: 14px 0;
+    margin: 14px 0 10px;
     padding: 12px;
     border-radius: 10px;
     background: #0F172A;
@@ -256,14 +256,45 @@
     font-family: 'Noto Sans TC', sans-serif;
   }
 
+  /* 歷史加分紀錄區 */
+  .log-container {
+    background: #0B0E14;
+    border: 1px solid #1E293B;
+    border-radius: 10px;
+    padding: 8px 10px;
+    max-height: 120px;
+    overflow-y: auto;
+    font-family: 'Noto Sans TC', sans-serif;
+    font-size: 12px;
+  }
+
+  .log-title {
+    font-size: 11px;
+    color: #64748B;
+    margin-bottom: 4px;
+    font-weight: bold;
+    display: flex;
+    justify-content: space-between;
+  }
+
+  .log-item {
+    padding: 3px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    color: #94A3B8;
+  }
+
+  .log-item:last-child {
+    border-bottom: none;
+  }
+
   .legend {
     font-size: 12px;
     color: #64748B;
     line-height: 1.6;
-    margin-top: 14px;
+    margin-top: 12px;
     font-family: 'Noto Sans TC', sans-serif;
     border-top: 1px dashed #1E293B;
-    padding-top: 12px;
+    padding-top: 10px;
   }
 
   @media(max-width:850px){
@@ -277,7 +308,7 @@
 <div class="app">
   <div class="header-container">
     <h1>🏎️ 601 RACING GAME</h1>
-    <div class="subtitle">36 格 · 6 組競速｜答對就前進，踩中神秘格子會觸發隱藏效果！</div>
+    <div class="subtitle">36 格 · 6 組競速｜自動存檔紀錄，重新整理不會消失！</div>
   </div>
 
   <div class="layout">
@@ -289,6 +320,13 @@
       <div class="teams" id="teams"></div>
       <div class="status" id="status">請選擇一組開始！</div>
 
+      <div class="log-title">
+        <span>📜 歷程紀錄 (自動儲存)</span>
+      </div>
+      <div class="log-container" id="logs">
+        <div class="log-item">無歷史紀錄</div>
+      </div>
+
       <div class="controls">
         <div class="moveBtns">
           <button onclick="moveSelected(1)">+1</button>
@@ -298,36 +336,80 @@
           <button onclick="moveSelected(5)">+5</button>
           <button onclick="moveSelected(6)">+6</button>
         </div>
-        <button class="reset" onclick="resetGame()">🔄 NEW GAME</button>
+        <button class="reset" onclick="resetGame()">🔄 重置比賽 (NEW GAME)</button>
       </div>
 
       <div class="legend">
         💡 <b>玩法說明：</b><br>
-        1. 選擇隊伍，點擊按鈕前進 (+1 ~ +6 格)<br>
-        2. 棋盤藏有神秘格，踏上會隨機觸發加速或後退<br>
-        3. 最快到達第 36 格的隊伍奪冠！
+        1. 選擇隊伍後點擊按鈕 (+1 ~ +6)<br>
+        2. 踏上神秘格會隨機觸發加速或後退<br>
+        3. 所有數據皆自動保存在瀏覽器中
       </div>
     </aside>
   </div>
 </div>
 
 <script>
-// 改用 Racing Style 的 6 組全新車款與載具
 const emojis = ["🏎️", "🏎️", "🏍️", "🏎️", "🚀", "🏁"];
 const names = ["Apex Red", "Nitro Blue", "Speed Moto", "Viper Yellow", "Rocket Neon", "Pace Leader"];
-
-// 設定隱藏神秘格子位置
 const specialCells = [5, 9, 13, 17, 21, 24, 28, 31, 34];
 
 let pos = [0,0,0,0,0,0];
 let selected = 0;
 let gameOver = false;
+let logs = [];
+
+// 存檔 Key 鍵名
+const STORAGE_KEY = "601_racing_game_save";
+
+// 載入存檔
+function loadGameData(){
+  const saved = localStorage.getItem(STORAGE_KEY);
+  if(saved){
+    try {
+      const data = JSON.parse(saved);
+      pos = data.pos || [0,0,0,0,0,0];
+      selected = data.selected || 0;
+      gameOver = data.gameOver || false;
+      logs = data.logs || [];
+    } catch(e) {
+      console.error("載入存檔失敗", e);
+    }
+  }
+}
+
+// 儲存遊戲資料
+function saveGameData(){
+  const data = {
+    pos: pos,
+    selected: selected,
+    gameOver: gameOver,
+    logs: logs
+  };
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+}
+
+// 新增紀錄條目
+function addLog(msg){
+  const time = new Date().toLocaleTimeString('zh-TW', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  logs.unshift(`[${time}] ${msg}`);
+  if(logs.length > 20) logs.pop(); // 最多留 20 條紀錄
+  renderLogs();
+}
+
+function renderLogs(){
+  const container = document.getElementById("logs");
+  if(logs.length === 0){
+    container.innerHTML = '<div class="log-item">無歷史紀錄</div>';
+    return;
+  }
+  container.innerHTML = logs.map(l => `<div class="log-item">${l}</div>`).join('');
+}
 
 function render(){
   const track = document.getElementById("track");
   track.innerHTML = "";
   
-  // 蛇行棋盤：由下往上、左右交錯
   let nums = [];
   for(let r=5; r>=0; r--){
     let row = Array.from({length:6}, (_,i) => r*6 + i + 1);
@@ -361,10 +443,17 @@ function render(){
   names.forEach((name, i) => {
     const d = document.createElement("div");
     d.className = "team" + (i === selected ? " active" : "");
-    d.onclick = () => { selected = i; render(); setStatus(`${names[i]} 已選取 🏎️`); };
+    d.onclick = () => { 
+      selected = i; 
+      render(); 
+      setStatus(`${names[i]} 已選取 🏎️`);
+      saveGameData();
+    };
     d.innerHTML = `<div class="teamrow"><span class="teamname">${emojis[i]} ${name}</span><span class="pos">${pos[i]}/36</span></div>`;
     teams.appendChild(d);
   });
+
+  renderLogs();
 }
 
 function setStatus(t){ document.getElementById("status").textContent = t; }
@@ -375,10 +464,11 @@ function moveSelected(n){
   const old = pos[i];
   let next = Math.min(36, old + n);
   pos[i] = next;
-  render();
-  setStatus(`${emojis[i]} ${names[i]} 前進 ${n} 格！到達 ${next} 格`);
+  
+  let statusText = `${emojis[i]} ${names[i]} 前進 ${n} 格 (到達 ${next} 格)`;
+  setStatus(statusText);
+  addLog(statusText);
 
-  // 踩到隱藏格子時，隨機產生前進或後退的效果 (1~3 格)
   if(specialCells.includes(next)){
     const isForward = Math.random() < 0.5;
     const randomSteps = Math.floor(Math.random() * 3) + 1;
@@ -386,31 +476,48 @@ function moveSelected(n){
     
     const after = Math.max(1, Math.min(36, next + delta));
     pos[i] = after;
-    render();
 
+    const specialMsg = delta > 0
+      ? `🚀 觸發加速！額外前進 ${delta} 格 → 到達 ${after} 格`
+      : `⚠️ 踩到油漬！後退 ${Math.abs(delta)} 格 → 到達 ${after} 格`;
+    
     setTimeout(() => {
-      setStatus(delta > 0
-        ? `🚀 觸發氮氣加速！額外前進 ${delta} 格 → 到達 ${after} 格`
-        : `⚠️ 踩到打滑油漬！後退 ${Math.abs(delta)} 格 → 到達 ${after} 格`);
+      setStatus(specialMsg);
+      addLog(`${names[i]} ${specialMsg}`);
+      render();
+      saveGameData();
     }, 300);
   }
 
   if(pos[i] === 36){
     gameOver = true;
-    render();
-    setStatus(`🏆 ${names[i]} WIN! 率先通過終點線！`);
+    const winMsg = `🏆 ${names[i]} WIN! 率先通過終點線！`;
+    setStatus(winMsg);
+    addLog(winMsg);
   }
+
+  render();
+  saveGameData();
 }
 
 function resetGame(){
-  pos = [0,0,0,0,0,0];
-  selected = 0;
-  gameOver = false;
-  render();
-  setStatus("新比賽開始！請選擇一組 🏁");
+  if(confirm("確定要重置比賽嗎？歷史紀錄將被清空！")){
+    pos = [0,0,0,0,0,0];
+    selected = 0;
+    gameOver = false;
+    logs = [];
+    localStorage.removeItem(STORAGE_KEY);
+    render();
+    setStatus("比賽重置完成！請選擇一組開始 🏁");
+  }
 }
 
+// 初始化遊戲
+loadGameData();
 render();
+if(logs.length > 0){
+  setStatus("已自動載入上次的比賽紀錄 🏁");
+}
 </script>
 </body>
 </html>
